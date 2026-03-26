@@ -4,9 +4,17 @@ import type { NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const slug = pathname.split('/').pop()
+  
+  // URL Tujuan Utama (Landing Page)
+  const FALLBACK_URL = 'https://amartavecta.com/'
 
-  // Filter agar tidak memproses file statis atau api
-  if (!slug || pathname.includes('.') || pathname.startsWith('/api')) {
+  // 1. Jika slug kosong (mengakses s.amartavecta.com/)
+  if (!slug || pathname === '/') {
+    return NextResponse.redirect(new URL(FALLBACK_URL))
+  }
+
+  // 2. Filter agar tidak memproses file statis (favicon, images, dsb)
+  if (pathname.includes('.') || pathname.startsWith('/api')) {
     return NextResponse.next()
   }
 
@@ -16,30 +24,32 @@ export async function middleware(request: NextRequest) {
 
   try {
     const res = await fetch(url)
+    
     if (res.ok) {
       const data = await res.json()
       const targetUrl = data.fields?.original_url?.stringValue
+      
       if (targetUrl) {
+        // Berhasil menemukan link, redirect ke tujuan
         return NextResponse.redirect(new URL(targetUrl))
       }
     }
-  } catch (e) {
-    console.error(e)
-    return NextResponse.redirect(new URL("https://amartavecta.com/"))
-  }
+    
+    // 3. Jika slug TIDAK terdaftar di database (res.ok adalah false)
+    return NextResponse.redirect(new URL(FALLBACK_URL))
 
-  return NextResponse.next()
+  } catch (e) {
+    // 4. Jika terjadi error koneksi atau API, arahkan ke fallback agar user tidak stuck
+    console.error('Middleware Error:', e)
+    return NextResponse.redirect(new URL(FALLBACK_URL))
+  }
 }
 
 export const config = {
   matcher: [
     /*
-     * Match semua path kecuali yang dimulai dengan:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * Jalankan middleware pada semua path kecuali file internal Next.js
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 }
