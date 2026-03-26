@@ -55,14 +55,30 @@ export async function middleware(request: ExtendedNextRequest) {
 
       // B. Update Daily Aggregation (Stats)
       // Kita asumsikan dashboard akan menghandle jika dokumen harian belum ada (atau pakai PATCH)
-      const statsUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/urls/${slug}/stats/${today}?key=${apiKey}&updateMask.fieldPaths=total&updateMask.fieldPaths=${device}`
+      const statsUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/urls/${slug}/stats/${today}?key=${apiKey}`;
+
+      // 1. Ambil data stats hari ini
+      const statsRes = await fetch(statsUrl);
       
-      // Ambil data harian dulu untuk increment (atau bisa di-fetch paralel di atas)
-      fetch(statsUrl).then(r => r.json()).then(sData => {
-        const dTotal = parseInt(sData.fields?.total?.integerValue || '0')
-        const dDevice = parseInt(sData.fields?.[device]?.integerValue || '0')
-        
+      if (statsRes.status === 404) {
+        // JIKA BELUM ADA: Buat dokumen baru (Initial State)
         fetch(statsUrl, {
+          method: 'PATCH', // PATCH pada dokumen baru akan membuatnya (Create)
+          body: JSON.stringify({
+            fields: {
+              total: { integerValue: "1" },
+              [device]: { integerValue: "1" },
+              last_update: { timestampValue: new Date().toISOString() }
+            }
+          })
+        });
+      } else {
+        // JIKA SUDAH ADA: Update increment
+        const sData = await statsRes.json();
+        const dTotal = parseInt(sData.fields?.total?.integerValue || '0');
+        const dDevice = parseInt(sData.fields?.[device]?.integerValue || '0');
+
+        fetch(`${statsUrl}&updateMask.fieldPaths=total&updateMask.fieldPaths=${device}`, {
           method: 'PATCH',
           body: JSON.stringify({
             fields: {
@@ -70,8 +86,8 @@ export async function middleware(request: ExtendedNextRequest) {
               [device]: { integerValue: (dDevice + 1).toString() }
             }
           })
-        })
-      })
+        });
+      }
 
       // C. Simpan Catatan History Individual (Detailed Log)
       const logsUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/urls/${slug}/logs?key=${apiKey}`
