@@ -1,2 +1,2 @@
-# short-url
-Created with NextJS + Firestore + Vercel
+# About
+Used for shorten your url using NextJS middleware + firestore
