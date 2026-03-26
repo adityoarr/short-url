@@ -1,45 +1,44 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server'; // Import tipe data di sini
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  
-  // Mengambil slug (misal: /promo -> promo)
-  const slug = pathname.split('/').pop();
+  const { pathname } = request.nextUrl
+  const slug = pathname.split('/').pop()
 
-  // Proteksi: Abaikan jika slug kosong, ada titik (file), atau folder api
+  // Filter agar tidak memproses file statis atau api
   if (!slug || pathname.includes('.') || pathname.startsWith('/api')) {
-    return NextResponse.next();
+    return NextResponse.next()
   }
 
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-
-  // URL REST API Firestore
-  const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/links/${slug}?key=${apiKey}`;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/links/${slug}?key=${apiKey}`
 
   try {
-    const response = await fetch(firestoreUrl);
-    
-    if (response.ok) {
-      const data = await response.json();
-      // Format response Firestore REST API: data.fields.url.stringValue
-      const targetUrl = data.fields?.url?.stringValue;
-
+    const res = await fetch(url)
+    if (res.ok) {
+      const data = await res.json()
+      const targetUrl = data.fields?.url?.stringValue
       if (targetUrl) {
-        // Gunakan 307 (Temporary Redirect) atau 308 (Permanent Redirect)
-        return NextResponse.redirect(new URL(targetUrl));
+        return NextResponse.redirect(new URL(targetUrl))
       }
     }
-  } catch (error) {
-    console.error('Fetch error:', error);
+  } catch (e) {
+    console.error(e)
   }
 
-  // Jika tidak ada di database, biarkan user lanjut ke halaman utama/404
-  return NextResponse.next();
+  return NextResponse.next()
 }
 
-// Konfigurasi agar middleware hanya berjalan pada path utama, bukan asset statis
 export const config = {
-  matcher: '/:path*',
-};
+  matcher: [
+    /*
+     * Match semua path kecuali yang dimulai dengan:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
+}
