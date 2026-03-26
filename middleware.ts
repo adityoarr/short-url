@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+interface ExtendedNextRequest extends NextRequest {
+  ip?: string;
+  geo?: {
+    city?: string;
+    country?: string;
+    region?: string;
+  };
+}
+
+export async function middleware(request: ExtendedNextRequest) {
   const { pathname } = request.nextUrl
   const slug = pathname.split('/').pop()
   const FALLBACK_URL = 'https://amartavecta.com/'
