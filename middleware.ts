@@ -4,22 +4,16 @@ import type { NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const slug = pathname.split('/').pop()
-  
-  // URL Tujuan Utama (Landing Page)
   const FALLBACK_URL = 'https://amartavecta.com/'
 
-  // 1. Jika slug kosong (mengakses s.amartavecta.com/)
-  if (!slug || pathname === '/') {
-    return NextResponse.redirect(new URL(FALLBACK_URL))
-  }
-
-  // 2. Filter agar tidak memproses file statis (favicon, images, dsb)
-  if (pathname.includes('.') || pathname.startsWith('/api')) {
+  if (!slug || pathname === '/' || pathname.includes('.') || pathname.startsWith('/api')) {
     return NextResponse.next()
   }
 
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+  
+  // URL untuk GET data
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/urls/${slug}?key=${apiKey}`
 
   try {
@@ -29,27 +23,38 @@ export async function middleware(request: NextRequest) {
       const data = await res.json()
       const targetUrl = data.fields?.original_url?.stringValue
       
+      // Ambil nilai clicks saat ini (Firebase REST API mengembalikan string untuk integerValue)
+      const currentClicks = parseInt(data.fields?.clicks?.integerValue || '0')
+
       if (targetUrl) {
-        // Berhasil menemukan link, redirect ke tujuan
+        // --- PROSES UPDATE CLICKS (+1) ---
+        // Kita gunakan updateMask agar hanya mengupdate field 'clicks'
+        const updateUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/urls/${slug}?updateMask.fieldPaths=clicks&key=${apiKey}`
+        
+        // Kita gunakan fetch tanpa 'await' jika ingin redirect instan (fire and forget)
+        // Atau gunakan 'await' jika ingin memastikan data masuk dulu
+        fetch(updateUrl, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              clicks: { integerValue: (currentClicks + 1).toString() }
+            }
+          })
+        }).catch(err => console.error("Update clicks gagal:", err))
+        // ---------------------------------
+
         return NextResponse.redirect(new URL(targetUrl))
       }
     }
     
-    // 3. Jika slug TIDAK terdaftar di database (res.ok adalah false)
     return NextResponse.redirect(new URL(FALLBACK_URL))
-
   } catch (e) {
-    // 4. Jika terjadi error koneksi atau API, arahkan ke fallback agar user tidak stuck
     console.error('Middleware Error:', e)
     return NextResponse.redirect(new URL(FALLBACK_URL))
   }
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Jalankan middleware pada semua path kecuali file internal Next.js
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
