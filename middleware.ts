@@ -25,6 +25,7 @@ export async function middleware(request: NextRequest) {
     }
   } catch (e) {
     console.error(e)
+    return NextResponse.redirect(new URL("https://amartavecta.com/"))
   }
 
   return NextResponse.next()
