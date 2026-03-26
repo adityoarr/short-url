@@ -12,13 +12,13 @@ export async function middleware(request: NextRequest) {
 
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/links/${slug}?key=${apiKey}`
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/urls/${slug}?key=${apiKey}`
 
   try {
     const res = await fetch(url)
     if (res.ok) {
       const data = await res.json()
-      const targetUrl = data.fields?.url?.stringValue
+      const targetUrl = data.fields?.original_url?.stringValue
       if (targetUrl) {
         return NextResponse.redirect(new URL(targetUrl))
       }
